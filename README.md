@@ -22,6 +22,7 @@ This script extracts Product Key IDs for hardware hashes using the `oa3tool.exe`
 1. **Download and Install oa3tool**: 
    - Ensure `oa3tool.exe` is available on your local machine.
    - More information about oa3tool.exe can be found here: [oa3tool](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/oa3-command-line-config-file-syntax?view=windows-11)
+   - The OA 3.0 tool (OA3Tool.exe) is part of the Windows Assessment and Deployment Kit (Windows ADK). For installation instructions, see [Installing the Windows ADK](https://learn.microsoft.com/en-us/previous-versions/windows/hh825494(v=win.10))
 
 2. **Prepare the Input CSV**:
    - The input CSV must include two columns: `SerialNumber` and `HWHash`. 
