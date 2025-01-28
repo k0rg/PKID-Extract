@@ -89,5 +89,3 @@ Error: Failed to run oa3tool for Serial Number: A12B34C56D78E9 - Some error mess
 
 This script is provided under the [MIT License](LICENSE).
 ```
-
-This README includes sections on setup, usage, expected input/output, and some common troubleshooting tips. You can modify it as needed!
