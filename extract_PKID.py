@@ -237,7 +237,28 @@ def auto_map_columns(headers: list[str]) -> dict[str, str | None]:
 
 
 # ---------------------------------------------------------------------------
-# Core extraction logic (unchanged subprocess + regex approach)
+# Subprocess helpers – suppress console windows on Windows
+# ---------------------------------------------------------------------------
+
+def _subprocess_kwargs() -> dict:
+    """Return platform-specific kwargs for subprocess.run / Popen.
+
+    On Windows this prevents a console window from flashing for every
+    oa3tool invocation, which also significantly improves throughput.
+    """
+    kwargs: dict = {}
+    if sys.platform == "win32":
+        # CREATE_NO_WINDOW keeps the OS from allocating a console
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        si = subprocess.STARTUPINFO()
+        si.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+        si.wShowWindow = 0          # SW_HIDE
+        kwargs["startupinfo"] = si
+    return kwargs
+
+
+# ---------------------------------------------------------------------------
+# Core extraction logic
 # ---------------------------------------------------------------------------
 
 
@@ -250,9 +271,15 @@ def run_extraction(
     hash_col: str,
     on_progress=None,
     on_log=None,
+    cancel_event: threading.Event | None = None,
 ):
-    """Process the input CSV and write results.  Callbacks update the GUI."""
+    """Process the input CSV and write results.  Callbacks update the GUI.
+
+    If *cancel_event* is set, processing stops early and partial results
+    are written to *output_file*.
+    """
     output_data: list[dict[str, str]] = []
+    sp_kwargs = _subprocess_kwargs()
 
     with open(input_file, mode="r", newline="", encoding="utf-8-sig") as infile:
         reader = csv.DictReader(infile)
@@ -264,7 +291,15 @@ def run_extraction(
             on_log("Error: Input CSV contains no data rows.")
         return False
 
+    cancelled = False
     for i, row in enumerate(rows):
+        # ── Check for cancellation ──────────────────────────────────
+        if cancel_event is not None and cancel_event.is_set():
+            if on_log:
+                on_log(f"Cancelled after {i} of {total} rows.")
+            cancelled = True
+            break
+
         serial_number = row[serial_col]
         hw_hash = row[hash_col]
 
@@ -276,6 +311,7 @@ def run_extraction(
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                **sp_kwargs,
             )
 
             if result.returncode == 0:
@@ -317,13 +353,18 @@ def run_extraction(
         if on_progress:
             on_progress(i + 1, total)
 
-    # Write results
+    # Write whatever results we have (full or partial)
     with open(output_file, mode="w", newline="", encoding="utf-8-sig") as outfile:
         writer = csv.DictWriter(
             outfile, fieldnames=["SerialNumber", "HWHash", "ProductKeyID"]
         )
         writer.writeheader()
         writer.writerows(output_data)
+
+    if cancelled:
+        if on_log:
+            on_log(f"Partial results ({len(output_data)} rows) written to {output_file}")
+        return "cancelled"
 
     if on_log:
         on_log(f"Processing complete – {total} rows written to {output_file}")
@@ -365,6 +406,7 @@ class PKIDExtractApp(tk.Tk):
         self._build_ui()
         self._csv_headers: list[str] = []
         self._processing = False
+        self._cancel_event = threading.Event()
         self._detect_oa3tool()
 
     # ---- UI construction ---------------------------------------------------
@@ -415,10 +457,18 @@ class PKIDExtractApp(tk.Tk):
         self.progress_label = ttk.Label(action_frame, text="0 / 0")
         self.progress_label.grid(row=0, column=1, padx=(8, 0))
 
+        btn_row = ttk.Frame(action_frame)
+        btn_row.grid(row=1, column=0, columnspan=2, pady=(8, 0))
+
         self.run_btn = ttk.Button(
-            action_frame, text="▶  Process", command=self._start_processing
+            btn_row, text="▶  Process", command=self._start_processing
         )
-        self.run_btn.grid(row=1, column=0, columnspan=2, pady=(8, 0))
+        self.run_btn.pack(side="left", padx=(0, 4))
+
+        self.cancel_btn = ttk.Button(
+            btn_row, text="✕  Cancel", command=self._cancel_processing, state="disabled"
+        )
+        self.cancel_btn.pack(side="left")
 
         # ── Output result row (hidden until processing completes) ────────
         self.output_frame = ttk.Frame(action_frame)
@@ -569,7 +619,9 @@ class PKIDExtractApp(tk.Tk):
             return
 
         self._processing = True
+        self._cancel_event.clear()
         self.run_btn.config(state="disabled")
+        self.cancel_btn.config(state="normal")
         self.output_frame.grid_forget()  # hide previous output row
         self.progress["value"] = 0
         self.progress_label.config(text="0 / 0")
@@ -595,9 +647,15 @@ class PKIDExtractApp(tk.Tk):
         )
         thread.start()
 
+    def _cancel_processing(self):
+        """Signal the worker thread to stop after the current row."""
+        self._cancel_event.set()
+        self.cancel_btn.config(state="disabled")
+        self._log("Cancelling… (will stop after the current row finishes)")
+
     def _run_in_thread(self, tool, inp, out, log_path, serial_col, hash_col):
         try:
-            success = run_extraction(
+            result = run_extraction(
                 tool_path=tool,
                 input_file=inp,
                 output_file=out,
@@ -606,11 +664,12 @@ class PKIDExtractApp(tk.Tk):
                 hash_col=hash_col,
                 on_progress=self._on_progress,
                 on_log=self._log_threadsafe,
+                cancel_event=self._cancel_event,
             )
         except Exception as exc:
             self._log_threadsafe(f"Error: Unexpected failure – {exc}")
-            success = False
-        self.after(0, self._processing_done, success, out)
+            result = False
+        self.after(0, self._processing_done, result, out)
 
     def _on_progress(self, current: int, total: int):
         """Called from the worker thread; schedules GUI update."""
@@ -621,10 +680,15 @@ class PKIDExtractApp(tk.Tk):
         self.progress["value"] = pct
         self.progress_label.config(text=f"{current} / {total}")
 
-    def _processing_done(self, success: bool, output_path: str):
+    def _processing_done(self, result, output_path: str):
         self._processing = False
         self.run_btn.config(state="normal")
-        if success:
+        self.cancel_btn.config(state="disabled")
+        if result == "cancelled":
+            self.output_path_var.set(output_path)
+            self.output_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
+            self._log("Processing was cancelled. Partial results saved.")
+        elif result:
             self.output_path_var.set(output_path)
             self.output_frame.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(8, 0))
             self._log(f"Results saved to: {output_path}")
