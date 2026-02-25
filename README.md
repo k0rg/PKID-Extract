@@ -1,7 +1,7 @@
 
 # PKID Extract Tool
 
-A Windows GUI application that extracts Product Key IDs from hardware hashes using Microsoft's `oa3tool.exe`. Browse for your CSV, let the tool auto-detect columns, and get results in one click.
+A Windows GUI application that extracts Product Key IDs from hardware hashes using Microsoft's `oa3tool.exe`. Browse for your CSV or Excel file, let the tool auto-detect columns, and get results in one click.
 
 ## Prerequisites
 
@@ -10,11 +10,11 @@ A Windows GUI application that extracts Product Key IDs from hardware hashes usi
 | **Python 3.8+** | If Python is not installed, the included `PKID_Extract.bat` launcher will detect this and offer to **install it automatically via `winget`**. You can also install manually from [python.org/downloads](https://www.python.org/downloads/) – ensure **"Add Python to PATH"** is checked. |
 | **tkinter** | Included with the standard Python installer on Windows. If missing, the script exits with instructions to re-run the installer and enable "tcl/tk and IDLE". |
 
-> **Note:** `oa3tool.exe` is **bundled in this repository** — no separate download or ADK installation is required. No third-party pip packages are needed.
+> **Note:** `oa3tool.exe` is **bundled in this repository** — no separate download or ADK installation is required. If you open an `.xlsx` file, the tool will prompt to install `openpyxl` automatically via pip (one-time).
 
-## Preparing Your Input CSV
+## Preparing Your Input File
 
-The input CSV must contain at least two columns representing a serial number and a hardware hash. The column names do **not** need to match exactly — the tool automatically recognises common variations:
+The input file can be a **CSV** (`.csv`) or **Excel** (`.xlsx`) file. It must contain at least two columns representing a serial number and a hardware hash. The column names do **not** need to match exactly — the tool automatically recognises common variations:
 
 | Canonical Name | Recognised Column Headers |
 |---|---|
@@ -46,8 +46,9 @@ A12B34C56D78E9,DEF456UVW123...
    python extract_PKID.py
    ```
 
-2. **Select Input CSV** — click **Browse…** and choose your CSV file. The tool will:
-   - Read the CSV headers.
+2. **Select Input File** — click **Browse…** and choose your `.csv` or `.xlsx` file. The tool will:
+   - If an `.xlsx` file is selected and `openpyxl` is not installed, offer to install it automatically.
+   - Read the file headers.
    - Auto-map serial number and hardware hash columns (shown in the Column Mapping section).
    - If auto-detection fails, select the correct columns manually from the dropdowns.
 
@@ -57,7 +58,7 @@ A12B34C56D78E9,DEF456UVW123...
 
 ### Output Files
 
-Both files are created automatically in the **same directory** as the input CSV:
+Both files are created automatically in the **same directory** as the input file:
 
 | File | Naming Convention | Contents |
 |---|---|---|
@@ -84,8 +85,9 @@ Error: Failed to run oa3tool for Serial Number: A12B34C56D78E9 - <error details>
 | Problem | Solution |
 |---|---|
 | **"oa3tool.exe Missing"** | Ensure `oa3tool.exe` is in the same folder as `extract_PKID.py`. Re-download the repository if needed. |
-| **Columns not auto-detected** | Your CSV headers don't match any known alias. Select the correct columns manually from the dropdowns. |
+| **Columns not auto-detected** | Your file headers don't match any known alias. Select the correct columns manually from the dropdowns. |
 | **Empty or missing output** | Check the log pane / log file for per-row errors. Ensure hardware hashes are valid and properly formatted. |
+| **`openpyxl` install fails** | Install manually with `pip install openpyxl`, then re-launch the tool. |
 | **`tkinter` not available** | Re-run the Python installer, click "Modify", and ensure "tcl/tk and IDLE" is checked. |
 
 ## License

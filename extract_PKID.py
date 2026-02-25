@@ -11,6 +11,7 @@ import re
 import os
 import sys
 import threading
+import tempfile
 
 # ---------------------------------------------------------------------------
 # Prerequisite checks (run before any tkinter import)
@@ -49,6 +50,92 @@ _check_tkinter()
 
 import tkinter as tk  # noqa: E402  (deferred until after check)
 from tkinter import ttk, filedialog, messagebox  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# openpyxl – lazy import with auto-install prompt
+# ---------------------------------------------------------------------------
+
+def _ensure_openpyxl():
+    """Return the openpyxl module, installing it first if necessary.
+
+    Prompts the user for permission via a messagebox before installing.
+    Returns None if the user declines or installation fails.
+    """
+    try:
+        import openpyxl
+        return openpyxl
+    except ImportError:
+        pass
+
+    install = messagebox.askyesno(
+        "Install Required Package",
+        "Reading .xlsx files requires the 'openpyxl' package,\n"
+        "which is not currently installed.\n\n"
+        "Would you like to install it now?\n"
+        "(runs: pip install openpyxl)",
+    )
+    if not install:
+        return None
+
+    try:
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "openpyxl"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except Exception as exc:
+        messagebox.showerror(
+            "Installation Failed",
+            f"Could not install openpyxl:\n{exc}\n\n"
+            "Install it manually with:  pip install openpyxl",
+        )
+        return None
+
+    try:
+        import openpyxl
+        return openpyxl
+    except ImportError:
+        messagebox.showerror(
+            "Import Failed",
+            "openpyxl was installed but could not be imported.\n"
+            "Try restarting the application.",
+        )
+        return None
+
+
+def _read_xlsx_rows(path: str) -> tuple[list[str], list[dict[str, str]]]:
+    """Read an .xlsx file and return (headers, rows_as_dicts).
+
+    All cell values are converted to strings to match CSV behaviour.
+    Raises ImportError if openpyxl is not available.
+    """
+    import openpyxl  # caller must ensure this is installed
+
+    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    ws = wb.active
+    row_iter = ws.iter_rows(values_only=True)
+
+    # First row = headers
+    raw_headers = next(row_iter, None)
+    if not raw_headers:
+        wb.close()
+        return [], []
+
+    headers = [str(h).strip() if h is not None else "" for h in raw_headers]
+    rows: list[dict[str, str]] = []
+    for raw in row_iter:
+        row_dict = {}
+        for col_name, value in zip(headers, raw):
+            row_dict[col_name] = str(value).strip() if value is not None else ""
+        rows.append(row_dict)
+
+    wb.close()
+    return headers, rows
+
+
+def _is_xlsx(path: str) -> bool:
+    return path.lower().endswith(".xlsx")
 
 # ---------------------------------------------------------------------------
 # Column auto-mapping: common alternative names → canonical column names
@@ -217,7 +304,7 @@ class PKIDExtractApp(tk.Tk):
         file_frame = ttk.LabelFrame(self, text="Input", padding=8)
         file_frame.grid(row=0, column=0, sticky="ew", **pad)
 
-        ttk.Label(file_frame, text="CSV File:").grid(row=0, column=0, sticky="w")
+        ttk.Label(file_frame, text="File:").grid(row=0, column=0, sticky="w")
         self.input_var = tk.StringVar()
         ttk.Entry(file_frame, textvariable=self.input_var, width=60).grid(
             row=0, column=1, sticky="ew", padx=(4, 0)
@@ -309,23 +396,37 @@ class PKIDExtractApp(tk.Tk):
 
     def _browse_input(self):
         path = filedialog.askopenfilename(
-            title="Select Input CSV",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            title="Select Input File",
+            filetypes=[
+                ("Supported files", "*.csv *.xlsx"),
+                ("CSV files", "*.csv"),
+                ("Excel files", "*.xlsx"),
+                ("All files", "*.*"),
+            ],
         )
         if path:
+            if _is_xlsx(path):
+                openpyxl = _ensure_openpyxl()
+                if openpyxl is None:
+                    self._log("Cancelled: openpyxl is required to read .xlsx files.")
+                    return
             self.input_var.set(path)
-            self._load_csv_headers(path)
+            self._load_headers(path)
 
     # ---- Column detection & mapping ----------------------------------------
 
-    def _load_csv_headers(self, path: str):
-        """Read headers from the chosen CSV, populate dropdowns, auto-map."""
+    def _load_headers(self, path: str):
+        """Read headers from the chosen file, populate dropdowns, auto-map."""
         try:
-            with open(path, mode="r", newline="", encoding="utf-8-sig") as f:
-                reader = csv.DictReader(f)
-                self._csv_headers = list(reader.fieldnames or [])
+            if _is_xlsx(path):
+                headers, _rows = _read_xlsx_rows(path)
+                self._csv_headers = headers
+            else:
+                with open(path, mode="r", newline="", encoding="utf-8-sig") as f:
+                    reader = csv.DictReader(f)
+                    self._csv_headers = list(reader.fieldnames or [])
         except Exception as exc:
-            self._log(f"Error reading CSV headers: {exc}")
+            self._log(f"Error reading file headers: {exc}")
             return
 
         if not self._csv_headers:
@@ -373,7 +474,7 @@ class PKIDExtractApp(tk.Tk):
             return False
         inp = self.input_var.get().strip()
         if not inp:
-            messagebox.showwarning("Missing Path", "Please select an input CSV.")
+            messagebox.showwarning("Missing Path", "Please select an input file.")
             return False
         if not os.path.isfile(inp):
             messagebox.showerror(
