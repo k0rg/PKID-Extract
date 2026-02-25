@@ -13,7 +13,8 @@ Usage (from the repo root):
 import os
 
 block_cipher = None
-script_dir = os.path.dirname(os.path.abspath(SPECPATH))
+# SPECPATH is already the directory containing this .spec file
+script_dir = SPECPATH
 
 a = Analysis(
     [os.path.join(script_dir, 'extract_PKID.py')],
