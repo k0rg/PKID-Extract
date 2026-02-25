@@ -7,10 +7,10 @@ A Windows GUI application that extracts Product Key IDs from hardware hashes usi
 
 | Requirement | Details |
 |---|---|
-| **Python 3.8+** | [python.org/downloads](https://www.python.org/downloads/) – ensure **"Add Python to PATH"** is checked during install. The script checks your version on launch and will tell you if an upgrade is needed. |
+| **Python 3.8+** | If Python is not installed, the included `PKID_Extract.bat` launcher will detect this and offer to **install it automatically via `winget`**. You can also install manually from [python.org/downloads](https://www.python.org/downloads/) – ensure **"Add Python to PATH"** is checked. |
 | **tkinter** | Included with the standard Python installer on Windows. If missing, the script exits with instructions to re-run the installer and enable "tcl/tk and IDLE". |
 
-> **Note:** `oa3tool.exe` is **bundled in this repository** — no separate download or ADK installation is required. The script automatically uses the copy located next to `extract_PKID.py`. No third-party pip packages are needed.
+> **Note:** `oa3tool.exe` is **bundled in this repository** — no separate download or ADK installation is required. No third-party pip packages are needed.
 
 ## Preparing Your Input CSV
 
@@ -35,7 +35,12 @@ A12B34C56D78E9,DEF456UVW123...
 
 1. **Launch the tool**
 
-   Double-click `extract_PKID.py`, or run from a terminal:
+   Double-click **`PKID_Extract.bat`** — this is the recommended way to start the tool. It will:
+   - Check if Python is installed.
+   - If not, offer to install it automatically via `winget`.
+   - Launch the GUI once Python is available.
+
+   Alternatively, if you already have Python installed, run directly:
 
    ```bash
    python extract_PKID.py

@@ -7,6 +7,7 @@
 - External boundary: `oa3tool.exe` is the only decoding mechanism — no internal HW hash logic.
 
 ## Architecture – `extract_PKID.py`
+- **`PKID_Extract.bat`** – Windows launcher; checks for Python via `where`, offers `winget install` if missing, then runs `extract_PKID.py`.
 - **Prerequisite checks** (`_check_python_version`, `_check_tkinter`) run before any tkinter import; exit with actionable messages on failure.
 - **`_BUNDLED_OA3TOOL`** – path resolved relative to the script's own directory (`os.path.dirname(os.path.abspath(__file__))`).
 - **`PKIDExtractApp`** (tkinter.Tk subclass) – CSV browse dialog, column-mapping dropdowns, progress bar, log pane, "Open File" button.
@@ -39,6 +40,7 @@
 - Only stdlib is used (`tkinter`, `csv`, `subprocess`, `re`, `threading`). No pip dependencies.
 
 ## Primary references
+- `PKID_Extract.bat` – recommended entry point; handles Python installation
 - `extract_PKID.py` – all runtime logic and GUI
 - `oa3tool.exe` – bundled decoding tool (do not remove)
 - `README.md` – user-facing usage guide and input/output examples
