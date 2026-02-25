@@ -5,6 +5,14 @@ A Windows GUI application that extracts Product Key IDs from hardware hashes usi
 
 ## Prerequisites
 
+### Option A – Standalone executable (recommended)
+
+Download **`PKID_Extract.exe`** from the [latest GitHub Release](../../releases/latest). No Python installation required — just double-click the `.exe` to launch the GUI. `oa3tool.exe` is already bundled inside.
+
+### Option B – Run from source
+
+If you prefer to run the Python script directly:
+
 | Requirement | Details |
 |---|---|
 | **Python 3.8+** | If Python is not installed, the included `PKID_Extract.bat` launcher will detect this and offer to **install it automatically via `winget`**. You can also install manually from [python.org/downloads](https://www.python.org/downloads/) – ensure **"Add Python to PATH"** is checked. |
@@ -35,12 +43,14 @@ A12B34C56D78E9,DEF456UVW123...
 
 1. **Launch the tool**
 
-   Double-click **`PKID_Extract.bat`** — this is the recommended way to start the tool. It will:
+   **Standalone `.exe`** — Double-click **`PKID_Extract.exe`** downloaded from the [Releases](../../releases/latest) page. That's it.
+
+   **From source** — Double-click **`PKID_Extract.bat`**, which will:
    - Check if Python is installed.
    - If not, offer to install it automatically via `winget`.
    - Launch the GUI once Python is available.
 
-   Alternatively, if you already have Python installed, run directly:
+   Or run directly if Python is already installed:
 
    ```bash
    python extract_PKID.py

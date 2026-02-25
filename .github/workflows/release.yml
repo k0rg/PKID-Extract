@@ -1,0 +1,74 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"          # triggers on version tags like v1.0.0, v2.1.3, etc.
+  workflow_dispatch:   # allow manual runs from the Actions tab
+
+permissions:
+  contents: write      # needed to create releases and upload assets
+
+jobs:
+  build:
+    name: Build Windows executable
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install build dependencies
+        run: pip install pyinstaller openpyxl
+
+      - name: Verify oa3tool.exe is present
+        run: |
+          if (!(Test-Path "oa3tool.exe")) {
+            Write-Error "oa3tool.exe not found in repo root"
+            exit 1
+          }
+        shell: pwsh
+
+      - name: Build executable with PyInstaller
+        run: pyinstaller PKID_Extract.spec --noconfirm
+
+      - name: Verify build output
+        run: |
+          if (!(Test-Path "dist/PKID_Extract.exe")) {
+            Write-Error "Build failed – PKID_Extract.exe not found in dist/"
+            exit 1
+          }
+          Write-Host "Build successful: dist/PKID_Extract.exe"
+          Get-Item "dist/PKID_Extract.exe" | Select-Object Name, Length
+        shell: pwsh
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PKID_Extract
+          path: dist/PKID_Extract.exe
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: PKID_Extract
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: PKID_Extract.exe
+          generate_release_notes: true
+          draft: false
+          prerelease: false

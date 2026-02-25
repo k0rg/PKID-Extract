@@ -339,8 +339,14 @@ def _append_log(log_path: str, message: str):
 # Bundled oa3tool.exe path
 # ---------------------------------------------------------------------------
 
-# Resolve relative to the script's own directory so it works regardless of cwd.
-_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+# When frozen by PyInstaller, bundled data files are extracted to sys._MEIPASS
+# (--onefile) or live next to the executable (--onedir).  In normal (unfrozen)
+# mode, resolve relative to the script's own directory.
+if getattr(sys, "frozen", False):
+    _SCRIPT_DIR = sys._MEIPASS          # type: ignore[attr-defined]
+else:
+    _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+
 _BUNDLED_OA3TOOL = os.path.join(_SCRIPT_DIR, "oa3tool.exe")
 
 
