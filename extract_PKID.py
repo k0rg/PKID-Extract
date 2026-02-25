@@ -111,8 +111,34 @@ def _read_xlsx_rows(path: str) -> tuple[list[str], list[dict[str, str]]]:
     Raises ImportError if openpyxl is not available.
     """
     import openpyxl  # caller must ensure this is installed
+    from zipfile import BadZipFile
 
-    wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    # -- Detect files with .xlsx extension that aren't real OOXML ------------
+    try:
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    except BadZipFile:
+        # The file is not a valid zip/xlsx.  Try to figure out what it
+        # actually is so we can give a helpful message (or just read it).
+        actual = _sniff_real_format(path)
+        if actual == "csv":
+            # It's really a CSV/TSV disguised as .xlsx – fall back silently
+            return _read_csv_rows(path)
+        elif actual == "html":
+            raise ValueError(
+                "This .xlsx file is actually an HTML document (some export tools do this).\n"
+                "Open it in Excel, then use File → Save As → 'CSV UTF-8' or 'Excel Workbook (.xlsx)'."
+            )
+        elif actual == "xls":
+            raise ValueError(
+                "This file appears to be an older .xls (Excel 97-2003) format.\n"
+                "Open it in Excel, then use File → Save As → 'CSV UTF-8' or 'Excel Workbook (.xlsx)'."
+            )
+        else:
+            raise ValueError(
+                "This .xlsx file could not be opened (it is not a valid Excel workbook).\n"
+                "Open it in Excel, then re-save as 'CSV UTF-8' or 'Excel Workbook (.xlsx)'."
+            )
+
     ws = wb.active
     row_iter = ws.iter_rows(values_only=True)
 
@@ -131,6 +157,46 @@ def _read_xlsx_rows(path: str) -> tuple[list[str], list[dict[str, str]]]:
         rows.append(row_dict)
 
     wb.close()
+    return headers, rows
+
+
+def _sniff_real_format(path: str) -> str:
+    """Peek at the first bytes of a file to guess its actual format."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(512)
+    except Exception:
+        return "unknown"
+
+    # Old-style .xls (Compound File Binary / OLE2)
+    if head[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
+        return "xls"
+
+    # HTML (some tools export a table as .xlsx)
+    text = head.decode("utf-8", errors="ignore").strip().lower()
+    if text.startswith("<!doctype") or text.startswith("<html") or "<table" in text[:256]:
+        return "html"
+
+    # Likely plain-text / CSV / TSV
+    if all(b < 128 for b in head[:256]) or head[:3] == b"\xef\xbb\xbf":
+        return "csv"
+
+    return "unknown"
+
+
+def _read_csv_rows(path: str) -> tuple[list[str], list[dict[str, str]]]:
+    """Fallback: read a plain-text CSV/TSV and return (headers, rows_as_dicts)."""
+    with open(path, mode="r", newline="", encoding="utf-8-sig") as f:
+        # Sniff the dialect to handle tabs, semicolons, etc.
+        sample = f.read(8192)
+        f.seek(0)
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+        except csv.Error:
+            dialect = "excel"  # fall back to default comma-separated
+        reader = csv.DictReader(f, dialect=dialect)
+        headers = list(reader.fieldnames or [])
+        rows = [row for row in reader]
     return headers, rows
 
 
