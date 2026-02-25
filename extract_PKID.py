@@ -126,17 +126,17 @@ def _read_xlsx_rows(path: str) -> tuple[list[str], list[dict[str, str]]]:
         elif actual == "html":
             raise ValueError(
                 "This .xlsx file is actually an HTML document (some export tools do this).\n"
-                "Open it in Excel, then use File → Save As → 'CSV UTF-8' or 'Excel Workbook (.xlsx)'."
+                "Open it in Excel, then use File \u2192 Save As \u2192 'CSV (Comma delimited) (*.csv)'."
             )
         elif actual == "xls":
             raise ValueError(
                 "This file appears to be an older .xls (Excel 97-2003) format.\n"
-                "Open it in Excel, then use File → Save As → 'CSV UTF-8' or 'Excel Workbook (.xlsx)'."
+                "Open it in Excel, then use File \u2192 Save As \u2192 'CSV (Comma delimited) (*.csv)'."
             )
         else:
             raise ValueError(
                 "This .xlsx file could not be opened (it is not a valid Excel workbook).\n"
-                "Open it in Excel, then re-save as 'CSV UTF-8' or 'Excel Workbook (.xlsx)'."
+                "Open it in Excel, then use File \u2192 Save As \u2192 'CSV (Comma delimited) (*.csv)'."
             )
 
     ws = wb.active
