@@ -6,6 +6,7 @@ view progress, and inspect logs without touching the command line.
 """
 
 import csv
+import hashlib
 import subprocess
 import re
 import os
@@ -413,6 +414,50 @@ else:
     _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 _BUNDLED_OA3TOOL = os.path.join(_SCRIPT_DIR, "oa3tool.exe")
+_BUNDLED_OA3TOOL_SHA256 = os.path.join(_SCRIPT_DIR, "oa3tool.exe.sha256")
+
+
+def _verify_oa3tool_integrity() -> tuple[bool, str]:
+    """Verify oa3tool.exe against its companion .sha256 checksum file.
+
+    Returns (ok, message).  *ok* is True when the hash matches, the
+    checksum file is missing (non-fatal), or the exe itself is absent
+    (checked separately).  It is False only when the checksum exists
+    and does NOT match, indicating tampering.
+    """
+    if not os.path.isfile(_BUNDLED_OA3TOOL):
+        return True, ""   # exe-missing is handled by _detect_oa3tool
+
+    if not os.path.isfile(_BUNDLED_OA3TOOL_SHA256):
+        return True, "Checksum file not found – integrity check skipped."
+
+    # Read expected hash (format: "<hex>  <filename>" or just "<hex>")
+    try:
+        with open(_BUNDLED_OA3TOOL_SHA256, "r", encoding="utf-8") as f:
+            line = f.read().strip()
+        expected = line.split()[0].lower()
+    except Exception as exc:
+        return True, f"Could not read checksum file: {exc}"
+
+    # Compute actual hash
+    sha256 = hashlib.sha256()
+    try:
+        with open(_BUNDLED_OA3TOOL, "rb") as f:
+            for chunk in iter(lambda: f.read(1 << 16), b""):
+                sha256.update(chunk)
+    except Exception as exc:
+        return False, f"Could not read oa3tool.exe for hashing: {exc}"
+
+    actual = sha256.hexdigest().lower()
+    if actual == expected:
+        return True, f"oa3tool.exe integrity verified (SHA-256: {actual[:16]}…)"
+    else:
+        return False, (
+            f"INTEGRITY CHECK FAILED for oa3tool.exe!\n"
+            f"Expected SHA-256: {expected}\n"
+            f"Actual SHA-256:   {actual}\n"
+            f"The file may have been tampered with. Re-download from a trusted source."
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -528,9 +573,20 @@ class PKIDExtractApp(tk.Tk):
     # ---- oa3tool detection --------------------------------------------------
 
     def _detect_oa3tool(self):
-        """Verify the bundled oa3tool.exe is present."""
+        """Verify the bundled oa3tool.exe is present and intact."""
         if os.path.isfile(_BUNDLED_OA3TOOL):
             self._log(f"oa3tool.exe found: {_BUNDLED_OA3TOOL}")
+            # Integrity check
+            ok, msg = _verify_oa3tool_integrity()
+            if msg:
+                self._log(msg)
+            if not ok:
+                messagebox.showwarning(
+                    "Integrity Check Failed",
+                    "oa3tool.exe failed its SHA-256 integrity check.\n\n"
+                    "The file may have been modified or corrupted.\n"
+                    "Check the log for details.",
+                )
         else:
             self._log(
                 "WARNING: oa3tool.exe not found next to this script.\n"

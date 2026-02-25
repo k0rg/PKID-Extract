@@ -23,6 +23,8 @@ a = Analysis(
     datas=[
         # Bundle oa3tool.exe so it is extracted at runtime into sys._MEIPASS
         (os.path.join(script_dir, 'oa3tool.exe'), '.'),
+        # Bundle checksum for runtime integrity verification
+        (os.path.join(script_dir, 'oa3tool.exe.sha256'), '.'),
     ],
     hiddenimports=['openpyxl'],
     hookspath=[],

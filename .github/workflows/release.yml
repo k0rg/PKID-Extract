@@ -26,12 +26,23 @@ jobs:
       - name: Install build dependencies
         run: pip install pyinstaller openpyxl
 
-      - name: Verify oa3tool.exe is present
+      - name: Verify oa3tool.exe integrity
         run: |
           if (!(Test-Path "oa3tool.exe")) {
             Write-Error "oa3tool.exe not found in repo root"
             exit 1
           }
+          if (!(Test-Path "oa3tool.exe.sha256")) {
+            Write-Error "oa3tool.exe.sha256 checksum file not found"
+            exit 1
+          }
+          $expected = (Get-Content "oa3tool.exe.sha256" -Raw).Trim().Split()[0].ToLower()
+          $actual = (Get-FileHash "oa3tool.exe" -Algorithm SHA256).Hash.ToLower()
+          if ($expected -ne $actual) {
+            Write-Error "SHA-256 mismatch!  Expected: $expected  Actual: $actual"
+            exit 1
+          }
+          Write-Host "oa3tool.exe integrity verified (SHA-256: $actual)"
         shell: pwsh
 
       - name: Build executable with PyInstaller
