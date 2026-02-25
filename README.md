@@ -1,68 +1,65 @@
 
-# Product Key ID Extraction Script
+# PKID Extract Tool
 
-This script extracts Product Key IDs for hardware hashes using the `oa3tool.exe`. It processes a CSV file containing serial numbers and hardware hashes, decodes the hardware hashes, and writes the extracted Product Key IDs to a new CSV file. If any errors or missing ProductKeyID values are encountered, they will be logged into a separate (txt) log file.
+A Windows GUI application that extracts Product Key IDs from hardware hashes using Microsoft's `oa3tool.exe`. Browse for your CSV, let the tool auto-detect columns, and get results in one click.
 
-## Features
-- Reads serial numbers and hardware hashes from an input CSV.
-- Runs the [oa3tool](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/oa3-command-line-config-file-syntax?view=windows-11) to decode the hardware hash and extract Product Key IDs.
-- Displays a progress bar while processing the entries.
-- Logs any errors or warnings to a separate log file.
-- Saves the output in a new CSV file.
+## Prerequisites
 
-## Requirements
-- Python 3.x
-- [oa3tool](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/oa3-command-line-config-file-syntax?view=windows-11) (OEM Activation Tool)
-- Dependencies:
-  - `re` (Regex for product key extraction)
-  - `subprocess` (for executing oa3tool)
+| Requirement | Details |
+|---|---|
+| **Python 3.8+** | [python.org/downloads](https://www.python.org/downloads/) – ensure **"Add Python to PATH"** is checked during install. The script checks your version on launch and will tell you if an upgrade is needed. |
+| **tkinter** | Included with the standard Python installer on Windows. If missing, the script exits with instructions to re-run the installer and enable "tcl/tk and IDLE". |
 
-## Script Usage
+> **Note:** `oa3tool.exe` is **bundled in this repository** — no separate download or ADK installation is required. The script automatically uses the copy located next to `extract_PKID.py`. No third-party pip packages are needed.
 
-1. **Download and Install oa3tool**: 
-   - Ensure `oa3tool.exe` is available on your local machine.
-   - More information about oa3tool.exe can be found here: [oa3tool](https://learn.microsoft.com/en-us/windows-hardware/manufacture/desktop/oa3-command-line-config-file-syntax?view=windows-11)
-   - The OA 3.0 tool (OA3Tool.exe) is part of the Windows Assessment and Deployment Kit (Windows ADK). For installation instructions, see [Installing the Windows ADK](https://learn.microsoft.com/en-us/previous-versions/windows/hh825494(v=win.10))
+## Preparing Your Input CSV
 
-2. **Prepare the Input CSV**:
-   - The input CSV must include two columns: `SerialNumber` and `HWHash`. 
-   - Example of `input.csv` format:
-   ```csv
-   SerialNumber,HWHash
-   0F3XXXXXXXGT,ABC123XYZ456...
-   A12B34C56D78E9,DEF456UVW123...
-   ```
+The input CSV must contain at least two columns representing a serial number and a hardware hash. The column names do **not** need to match exactly — the tool automatically recognises common variations:
 
-3. **Script Configuration**:
-   - Modify the script variables to point to the correct file paths for:
-     - `tool_path` (Path to `oa3tool.exe`)
-     - `input_file` (Path to the input CSV)
-     - `output_file` (Path for the output CSV)
-     - `log_file` (Path for the error log file)
-   
-   Example paths:
-   ```python
-   tool_path = r"C:\path\to\oa3tool.exe"
-   input_file = r'C:\path\to\input.csv'
-   output_file = r'C:\path\to\decoded_product_keys.csv'
-   log_file = r'C:\path\to\error_log.txt'
-   ```
+| Canonical Name | Recognised Column Headers |
+|---|---|
+| SerialNumber | `SerialNumber`, `Serial_Number`, `Serial Number`, `SN`, `Device Serial Number`, … |
+| HWHash | `HWHash`, `HW_Hash`, `Hardware Hash`, `Hash`, … |
 
-4. **Run the Script**:
-   - Run the script using the following command:
+If your column names are not auto-detected, you can select them manually from the dropdowns.
+
+Example `input.csv`:
+
+```csv
+Device Serial Number,Hardware Hash
+0F3XXXXXXXGT,ABC123XYZ456...
+A12B34C56D78E9,DEF456UVW123...
+```
+
+## How to Use
+
+1. **Launch the tool**
+
+   Double-click `extract_PKID.py`, or run from a terminal:
 
    ```bash
-   python3 script_name.py
+   python extract_PKID.py
    ```
 
-5. **Output**:
-   - The decoded Product Key IDs will be saved to the specified output file (`output_file`).
-   - Any errors or missing ProductKeyID values will be logged in the specified log file (`log_file`).
-   - A progress bar will be displayed while processing the entries.
+2. **Select Input CSV** — click **Browse…** and choose your CSV file. The tool will:
+   - Read the CSV headers.
+   - Auto-map serial number and hardware hash columns (shown in the Column Mapping section).
+   - If auto-detection fails, select the correct columns manually from the dropdowns.
 
-## Example Output
+3. **Click ▶ Process** — a progress bar tracks each row. Warnings and errors appear in the log pane at the bottom of the window.
 
-### Output CSV (`decoded_product_keys.csv`):
+4. **View results** — when processing completes, the output file path is displayed with an **Open File** button to launch it directly.
+
+### Output Files
+
+Both files are created automatically in the **same directory** as the input CSV:
+
+| File | Naming Convention | Contents |
+|---|---|---|
+| Output CSV | `<input_name>_output.csv` | `SerialNumber`, `HWHash`, `ProductKeyID` |
+| Log file | `<input_name>_output_log.txt` | Warnings and errors (only created if issues occur) |
+
+Example output CSV:
 
 ```csv
 SerialNumber,HWHash,ProductKeyID
@@ -70,21 +67,22 @@ SerialNumber,HWHash,ProductKeyID
 A12B34C56D78E9,DEF456UVW123,1234567890123
 ```
 
-### Error Log (`error_log.txt`):
+Example log:
 
-```txt
+```
 Warning: ProductKeyID not found for Serial Number: 0F3XXXXXXXXXGT
-Error: Failed to run oa3tool for Serial Number: A12B34C56D78E9 - Some error message here...
+Error: Failed to run oa3tool for Serial Number: A12B34C56D78E9 - <error details>
 ```
 
 ## Troubleshooting
 
-- **Errors with `oa3tool`**:
-  - Ensure the path to `oa3tool.exe` is correct and accessible.
-
-- **Empty Output**:
-  - Ensure that the hardware hashes and serial numbers in the input CSV are valid and properly formatted.
+| Problem | Solution |
+|---|---|
+| **"oa3tool.exe Missing"** | Ensure `oa3tool.exe` is in the same folder as `extract_PKID.py`. Re-download the repository if needed. |
+| **Columns not auto-detected** | Your CSV headers don't match any known alias. Select the correct columns manually from the dropdowns. |
+| **Empty or missing output** | Check the log pane / log file for per-row errors. Ensure hardware hashes are valid and properly formatted. |
+| **`tkinter` not available** | Re-run the Python installer, click "Modify", and ensure "tcl/tk and IDLE" is checked. |
 
 ## License
 
-This script is provided under the [MIT License](LICENSE).
+This project is provided under the [MIT License](LICENSE).
