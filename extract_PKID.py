@@ -11,7 +11,6 @@ import re
 import os
 import sys
 import threading
-import tempfile
 
 # ---------------------------------------------------------------------------
 # Prerequisite checks (run before any tkinter import)
@@ -278,6 +277,10 @@ def run_extraction(
     If *cancel_event* is set, processing stops early and partial results
     are written to *output_file*.
     """
+    # Subprocess timeout per row (seconds).  Prevents a hung oa3tool from
+    # blocking the entire run indefinitely.
+    SUBPROCESS_TIMEOUT = 120
+
     output_data: list[dict[str, str]] = []
     sp_kwargs = _subprocess_kwargs()
 
@@ -305,12 +308,28 @@ def run_extraction(
 
         product_key_id = "Not Found"
 
+        # ── Input validation ────────────────────────────────────────
+        # HW hashes are base-64-encoded strings; reject anything that
+        # contains characters outside the expected set or is empty.
+        if not hw_hash or not re.fullmatch(r'[A-Za-z0-9+/=\s]{1,500000}', hw_hash):
+            msg = f"Warning: Skipped row {i+1} – invalid HW hash for Serial Number: {serial_number}"
+            _append_log(log_file, msg)
+            if on_log:
+                on_log(msg)
+            output_data.append(
+                {"SerialNumber": serial_number, "HWHash": hw_hash, "ProductKeyID": product_key_id}
+            )
+            if on_progress:
+                on_progress(i + 1, total)
+            continue
+
         try:
             result = subprocess.run(
                 [tool_path, f"/decodehwhash:{hw_hash}"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
+                timeout=SUBPROCESS_TIMEOUT,
                 **sp_kwargs,
             )
 
@@ -330,6 +349,11 @@ def run_extraction(
                 _append_log(log_file, msg)
                 if on_log:
                     on_log(msg)
+        except subprocess.TimeoutExpired:
+            msg = f"Warning: oa3tool timed out ({SUBPROCESS_TIMEOUT}s) for Serial Number: {serial_number}"
+            _append_log(log_file, msg)
+            if on_log:
+                on_log(msg)
         except FileNotFoundError:
             msg = f"Error: oa3tool.exe not found at '{tool_path}'. Aborting."
             _append_log(log_file, msg)
